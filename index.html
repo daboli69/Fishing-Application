@@ -103,6 +103,15 @@
   .leaflet-popup-tip{background:var(--panel);border:1px solid var(--line)}
   .leaflet-popup-content{margin:13px 15px;width:226px!important}
   .card .nm{font-size:15px;font-weight:600;margin-bottom:6px}
+  .verify{border-radius:8px;padding:8px 10px;margin-bottom:9px;font-size:12px;line-height:1.35}
+  .verify .vh{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;font-weight:700;display:block;margin-bottom:3px}
+  .verify.pub{background:rgba(57,255,158,.10);border:1px solid var(--gem)}
+  .verify.pub .vh{color:var(--gem)}
+  .verify.bank{background:rgba(255,210,74,.10);border:1px solid var(--sleeper)}
+  .verify.bank .vh{color:var(--sleeper)}
+  .verify.likely{background:var(--panel2);border:1px solid var(--line)}
+  .verify.likely .vh{color:var(--mute)}
+  .verify .own{color:var(--ink);font-weight:600}
   .badges{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px}
   .tg{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;padding:3px 7px;border-radius:5px;
     font-weight:700;color:#0e1518}
@@ -211,7 +220,7 @@ L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
 // filter state
 const active={ tier:new Set(["HIDDEN GEM","SLEEPER","WORTH A LOOK"]),
                type:new Set(["pond","lake"]) };   // ponds-first: reservoir off by default
-let bassOnly=false, easyOnly=false;
+let bassOnly=false, easyOnly=false, showLikely=false;
 let origin=null, radius=10, originMarker=null, ring=null;
 const layers=[]; // {p, marker, poly}
 
@@ -219,6 +228,7 @@ function toast(html,ms=6000){const t=document.getElementById("toast");t.innerHTM
 function radiusFor(acres){return Math.max(10,Math.min(16,7+Math.sqrt(acres||1)*2));}
 
 function visible(p){
+  if((p.access==="LIKELY") && !showLikely) return false;
   if(!active.tier.has(p.tier)) return false;
   if(!active.type.has(p.wtype)) return false;
   if(bassOnly && !(p.bass==="PRIME"||p.bass==="GOOD")) return false;
@@ -261,13 +271,14 @@ function buildList(){
   rows.forEach(o=>{
     const p=o.p, t=TIERS[p.tier]||TIERS.SKIP;
     const away = origin ? milesBetween(origin,[p.lat,p.lon]).toFixed(1)+" mi" : "";
+    const mark = p.access==="PUBLIC" ? "✓ " : (p.access==="PUBLIC_BANK" ? "◑ " : "○ ");
     const row=document.createElement("div");
     row.className="lsrow";
     row.innerHTML=`
       <span class="lsdot" style="background:${t.c}"></span>
       <div class="lsmain">
-        <div class="lsname">${p.name}</div>
-        <div class="lssub">${p.wtype} · ${p.acres} ac · walk ${walkStr(p.nearest_park_m)}${p.easy_access?" · easy access":""}</div>
+        <div class="lsname">${mark}${p.name}</div>
+        <div class="lssub">${p.owner} · ${p.acres} ac · walk ${walkStr(p.nearest_park_m)}${p.easy_access?" · easy":""}</div>
       </div>
       ${p.bass?`<span class="lsbass">${p.bass}</span>`:""}
       <div class="lsaway">${away}</div>`;
@@ -288,11 +299,18 @@ function popupHTML(p){
   const id=p.osm_id+"|"+p.lat, scouted=SCOUTED.has(id);
   const away = origin ? ` · ${milesBetween(origin,[p.lat,p.lon]).toFixed(1)} mi away` : "";
   const bassBadge = p.bass ? `<span class="tg bass">BASS ${p.bass}</span>` : "";
+  const acc = p.access||"PUBLIC";
+  const verify = acc==="PUBLIC"
+      ? `<div class="verify pub"><span class="vh">✓ PUBLIC LAND — CONFIRMED</span>Owned by <span class="own">${p.owner}</span>. Open to the public.</div>`
+    : acc==="PUBLIC_BANK"
+      ? `<div class="verify bank"><span class="vh">✓ PUBLIC BANK</span>Public side owned by <span class="own">${p.owner}</span>. Fish that bank — the opposite shore may be private.</div>`
+      : `<div class="verify likely"><span class="vh">○ UNVERIFIED</span>On OSM parkland but not parcel-confirmed. Check signage before you fish.</div>`;
   const spp = (p.species&&p.species.length)
      ? `Likely here: <b>${p.species.join("</b>, <b>")}</b>.<br><span style="opacity:.7">Typical for this water type in central OH — not a survey.</span>`
      : "";
   return `<div class="card">
     <div class="nm">${p.name}${away}</div>
+    ${verify}
     <div class="badges">
       <span class="tg ${t.abbr}">${p.tier} · ${p.score}</span>
       ${bassBadge}
@@ -333,6 +351,7 @@ function buildChips(){
   mk("type","RESERVOIR",false,v=>{tog(active.type,"reservoir",v);render();});
   mk("toggle bass","BASS ONLY",false,v=>{bassOnly=v;render();});
   mk("toggle easy","EASY ACCESS",false,v=>{easyOnly=v;render();});
+  mk("toggle","SHOW UNVERIFIED",false,v=>{showLikely=v;render();});
 }
 function tog(set,key,on){on?set.add(key):set.delete(key);}
 
