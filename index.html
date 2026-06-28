@@ -7,8 +7,9 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   :root{
-    --bg:#0e1518; --panel:#16242a; --line:#27424b; --ink:#e7f0f0; --mute:#7e9aa1;
+    --bg:#0e1518; --panel:#16242a; --panel2:#1c2f36; --line:#27424b; --ink:#e7f0f0; --mute:#7e9aa1;
     --gem:#39ff9e; --sleeper:#ffd24a; --look:#5aa9ff; --skip:#5b6b70;
+    --bass:#ff8a3d; --you:#5aa9ff;
     --mono:'SFMono-Regular',ui-monospace,'Menlo','Consolas',monospace;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -16,62 +17,77 @@
     font-family:system-ui,-apple-system,sans-serif}
   #map{position:absolute;inset:0;z-index:1;background:var(--bg)}
 
-  /* top bar */
-  .bar{position:absolute;z-index:1000;top:0;left:0;right:0;
-    padding:calc(env(safe-area-inset-top) + 10px) 12px 10px;
-    background:linear-gradient(180deg,rgba(14,21,24,.96),rgba(14,21,24,.0));
-    pointer-events:none}
-  .title{font-family:var(--mono);font-weight:700;letter-spacing:.14em;
-    font-size:13px;color:var(--ink);pointer-events:none;display:flex;
-    align-items:center;gap:8px}
-  .title .dot{width:8px;height:8px;border-radius:50%;background:var(--gem);
-    box-shadow:0 0 10px var(--gem)}
-  .meta{font-family:var(--mono);font-size:10px;color:var(--mute);margin-top:2px}
-  .chips{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;pointer-events:auto}
-  .chip{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;
-    border:1px solid var(--line);background:var(--panel);color:var(--mute);
-    padding:6px 9px;border-radius:20px;cursor:pointer;user-select:none;
-    display:flex;align-items:center;gap:6px;transition:.15s}
-  .chip .sw{width:8px;height:8px;border-radius:50%}
-  .chip.off{opacity:.35}
-  .chip[data-t="HIDDEN GEM"] .sw{background:var(--gem)}
-  .chip[data-t="SLEEPER"] .sw{background:var(--sleeper)}
-  .chip[data-t="WORTH A LOOK"] .sw{background:var(--look)}
+  /* control sheet */
+  .sheet{position:absolute;z-index:1000;top:0;left:0;right:0;
+    padding:calc(env(safe-area-inset-top) + 9px) 10px 9px;
+    background:rgba(14,21,24,.94);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line)}
+  .row1{display:flex;align-items:center;gap:8px}
+  .title{font-family:var(--mono);font-weight:700;letter-spacing:.13em;font-size:12px;
+    display:flex;align-items:center;gap:7px;white-space:nowrap}
+  .title .dot{width:7px;height:7px;border-radius:50%;background:var(--gem);box-shadow:0 0 9px var(--gem)}
+  .meta{font-family:var(--mono);font-size:9.5px;color:var(--mute);margin-left:auto;text-align:right}
+  .collapse{margin-left:8px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+    width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:13px;flex:none}
 
-  /* locate button */
-  .fab{position:absolute;z-index:1000;right:14px;
-    bottom:calc(env(safe-area-inset-bottom) + 18px);
-    width:52px;height:52px;border-radius:50%;border:1px solid var(--line);
-    background:var(--panel);color:var(--ink);font-size:22px;cursor:pointer;
-    display:flex;align-items:center;justify-content:center;
+  .search{display:flex;gap:7px;margin-top:9px}
+  .search input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);color:var(--ink);
+    border-radius:9px;padding:10px 12px;font-size:14px;font-family:system-ui}
+  .search input::placeholder{color:var(--mute)}
+  .search select,.search button{background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+    border-radius:9px;padding:0 12px;font-family:var(--mono);font-size:12px;cursor:pointer;flex:none}
+  .search button{background:var(--gem);color:#0e1518;font-weight:700;border-color:var(--gem)}
+
+  .chips{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+  .chip{font-family:var(--mono);font-size:10px;letter-spacing:.03em;border:1px solid var(--line);
+    background:var(--panel);color:var(--mute);padding:6px 9px;border-radius:18px;cursor:pointer;
+    user-select:none;display:flex;align-items:center;gap:5px;transition:.13s}
+  .chip .sw{width:7px;height:7px;border-radius:50%}
+  .chip.off{opacity:.32}
+  .chip[data-on="1"]{color:var(--ink)}
+  .chip.t-gem .sw{background:var(--gem)} .chip.t-sleeper .sw{background:var(--sleeper)}
+  .chip.t-look .sw{background:var(--look)}
+  .chip.toggle[data-on="1"]{background:var(--panel2)}
+  .chip.bass[data-on="1"]{border-color:var(--bass);color:var(--bass)}
+  .chip.easy[data-on="1"]{border-color:var(--gem);color:var(--gem)}
+  .sheet.min .search,.sheet.min .chips{display:none}
+
+  .fab{position:absolute;z-index:1000;right:14px;bottom:calc(env(safe-area-inset-bottom) + 18px);
+    width:52px;height:52px;border-radius:50%;border:1px solid var(--line);background:var(--panel);
+    color:var(--ink);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;
     box-shadow:0 4px 16px rgba(0,0,0,.5)}
   .fab:active{transform:scale(.94)}
 
-  /* sample banner */
-  .banner{position:absolute;z-index:1000;left:12px;right:12px;
-    bottom:calc(env(safe-area-inset-bottom) + 18px);
-    background:var(--panel);border:1px solid var(--line);border-radius:10px;
-    padding:10px 12px;font-size:12px;color:var(--mute);font-family:var(--mono);
-    line-height:1.4}
-  .banner b{color:var(--sleeper)}
+  .toast{position:absolute;z-index:1000;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 18px);
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;
+    font-size:12px;color:var(--mute);font-family:var(--mono);line-height:1.4;display:none}
+  .toast b{color:var(--sleeper)}
 
-  /* popup = sounder readout card */
-  .leaflet-popup-content-wrapper{background:var(--panel);color:var(--ink);
-    border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.6)}
+  /* popup */
+  .leaflet-popup-content-wrapper{background:var(--panel);color:var(--ink);border:1px solid var(--line);
+    border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.6)}
   .leaflet-popup-tip{background:var(--panel);border:1px solid var(--line)}
-  .leaflet-popup-content{margin:13px 15px;width:208px!important}
-  .card .nm{font-size:15px;font-weight:600;margin-bottom:2px}
-  .card .tg{font-family:var(--mono);font-size:10px;letter-spacing:.1em;
-    padding:3px 7px;border-radius:5px;display:inline-block;color:#0e1518;font-weight:700}
-  .tg.GEM{background:var(--gem)} .tg.SLP{background:var(--sleeper)}
-  .tg.LK{background:var(--look)} .tg.SK{background:var(--skip);color:#fff}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:7px 10px;margin:11px 0}
-  .cell .k{font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--mute)}
-  .cell .v{font-family:var(--mono);font-size:14px;color:var(--ink);margin-top:1px}
-  .acts{display:flex;gap:7px;margin-top:4px}
-  .btn{flex:1;text-align:center;font-family:var(--mono);font-size:11px;
-    letter-spacing:.04em;padding:8px;border-radius:7px;border:1px solid var(--line);
-    background:#1c2f36;color:var(--ink);text-decoration:none;cursor:pointer}
+  .leaflet-popup-content{margin:13px 15px;width:226px!important}
+  .card .nm{font-size:15px;font-weight:600;margin-bottom:6px}
+  .badges{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px}
+  .tg{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;padding:3px 7px;border-radius:5px;
+    font-weight:700;color:#0e1518}
+  .tg.GEM{background:var(--gem)} .tg.SLP{background:var(--sleeper)} .tg.LK{background:var(--look)}
+  .tg.SK{background:var(--skip);color:#fff}
+  .tg.bass{background:var(--bass)}
+  .tg.type{background:var(--panel2);color:var(--mute);border:1px solid var(--line)}
+  .access{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;
+    font-size:12px;line-height:1.35;margin-bottom:9px}
+  .access .lbl{font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--mute);margin-bottom:2px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:7px 10px;margin-bottom:9px}
+  .cell .k{font-family:var(--mono);font-size:9px;letter-spacing:.07em;color:var(--mute)}
+  .cell .v{font-family:var(--mono);font-size:13px;margin-top:1px}
+  .spp{font-size:11px;color:var(--mute);line-height:1.4;margin-bottom:10px}
+  .spp b{color:var(--ink);font-weight:600}
+  .acts{display:flex;gap:7px}
+  .btn{flex:1;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.03em;padding:9px 4px;
+    border-radius:7px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);
+    text-decoration:none;cursor:pointer}
   .btn.on{background:var(--gem);color:#0e1518;border-color:var(--gem)}
   .leaflet-bar a{background:var(--panel);color:var(--ink);border-color:var(--line)}
 </style>
@@ -79,131 +95,213 @@
 <body>
 <div id="map"></div>
 
-<div class="bar">
-  <div class="title"><span class="dot"></span> QUIETWATER</div>
-  <div class="meta" id="meta">loading snapshot…</div>
+<div class="sheet" id="sheet">
+  <div class="row1">
+    <div class="title"><span class="dot"></span> QUIETWATER</div>
+    <div class="meta" id="meta">loading…</div>
+    <button class="collapse" id="collapse" title="Hide filters">▴</button>
+  </div>
+  <div class="search">
+    <input id="addr" type="text" inputmode="search" placeholder="Your address or town…">
+    <select id="radius">
+      <option value="5">5 mi</option>
+      <option value="10" selected>10 mi</option>
+      <option value="15">15 mi</option>
+      <option value="25">25 mi</option>
+      <option value="999">all</option>
+    </select>
+    <button id="go">Go</button>
+  </div>
   <div class="chips" id="chips"></div>
 </div>
 
-<button class="fab" id="locate" title="Find me">◎</button>
-<div class="banner" id="banner" style="display:none"></div>
+<button class="fab" id="locate" title="Use my location">◎</button>
+<div class="toast" id="toast"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-const TIERS = {
-  "HIDDEN GEM":{c:"#39ff9e",abbr:"GEM"},
-  "SLEEPER":{c:"#ffd24a",abbr:"SLP"},
-  "WORTH A LOOK":{c:"#5aa9ff",abbr:"LK"},
-  "SKIP":{c:"#5b6b70",abbr:"SK"}
+// ---- unit conversion: everything shown to the user is US customary ----
+const M_FT = 3.28084, M_MI = 0.000621371;
+function walkStr(m){
+  if(m==null) return "—";
+  const ft = m*M_FT;
+  return ft < 528 ? Math.round(ft)+" ft" : (m*M_MI).toFixed(1)+" mi";
+}
+function shoreStr(m){ return Math.round(m*M_FT).toLocaleString()+" ft"; }
+function accessLine(m){
+  if(m==null) return "Access unknown — scout the bank when you get there.";
+  const ft = m*M_FT, mi = m*M_MI;
+  if(ft < 150) return "Roadside. Park and you're basically on the water.";
+  if(ft < 528) return "Short walk from the lot, about "+Math.round(ft)+" ft. Easy carry.";
+  if(mi < 0.5) return "Easy walk-in, roughly "+mi.toFixed(1)+" mi from parking.";
+  return "Longer hike (~"+mi.toFixed(1)+" mi). Pack light.";
+}
+function milesBetween(a,b){
+  const R=3958.8, t=Math.PI/180;
+  const dLat=(b[0]-a[0])*t, dLon=(b[1]-a[1])*t;
+  const x=Math.sin(dLat/2)**2 + Math.cos(a[0]*t)*Math.cos(b[0]*t)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+
+const TIERS={
+  "HIDDEN GEM":{c:"#39ff9e",abbr:"GEM"}, "SLEEPER":{c:"#ffd24a",abbr:"SLP"},
+  "WORTH A LOOK":{c:"#5aa9ff",abbr:"LK"}, "SKIP":{c:"#5b6b70",abbr:"SK"}
 };
-const SCOUTED = new Set(JSON.parse(localStorage.getItem("qw_scouted")||"[]"));
-const saveScouted = () => localStorage.setItem("qw_scouted", JSON.stringify([...SCOUTED]));
+const SCOUTED=new Set(JSON.parse(localStorage.getItem("qw_scouted")||"[]"));
+const saveScouted=()=>localStorage.setItem("qw_scouted",JSON.stringify([...SCOUTED]));
 
-const map = L.map("map",{zoomControl:false}).setView([40.0,-83.0],11);
+const map=L.map("map",{zoomControl:false}).setView([40.0,-83.0],11);
 L.control.zoom({position:"bottomleft"}).addTo(map);
-// Dark, low-clutter basemap so the water reads first.
-L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{
-  attribution:'&copy; OSM &copy; CARTO', maxZoom:19, subdomains:"abcd"
-}).addTo(map);
+L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+  {attribution:"&copy; OSM &copy; CARTO",maxZoom:19,subdomains:"abcd"}).addTo(map);
 
-const active = new Set(["HIDDEN GEM","SLEEPER","WORTH A LOOK"]); // SKIP hidden by default
-const layers = []; // {tier, marker, poly}
+// filter state
+const active={ tier:new Set(["HIDDEN GEM","SLEEPER","WORTH A LOOK"]),
+               type:new Set(["pond","lake"]) };   // ponds-first: reservoir off by default
+let bassOnly=false, easyOnly=false;
+let origin=null, radius=10, originMarker=null, ring=null;
+const layers=[]; // {p, marker, poly}
 
-function radiusFor(acres){ return Math.max(7, Math.min(15, 6 + Math.sqrt(acres||1)*2)); }
+function toast(html,ms=6000){const t=document.getElementById("toast");t.innerHTML=html;t.style.display="block";clearTimeout(t._t);t._t=setTimeout(()=>t.style.display="none",ms);}
+function radiusFor(acres){return Math.max(7,Math.min(15,6+Math.sqrt(acres||1)*2));}
+
+function visible(p){
+  if(!active.tier.has(p.tier)) return false;
+  if(!active.type.has(p.wtype)) return false;
+  if(bassOnly && !(p.bass==="PRIME"||p.bass==="GOOD")) return false;
+  if(easyOnly && !p.easy_access) return false;
+  if(origin && milesBetween(origin,[p.lat,p.lon])>radius) return false;
+  return true;
+}
+function render(){
+  let shown=0;
+  layers.forEach(o=>{
+    if(visible(o.p)){ o.marker.addTo(map); shown++; }
+    else { map.removeLayer(o.marker); if(o.poly) map.removeLayer(o.poly); }
+  });
+  document.getElementById("meta").textContent = shown+" spots shown";
+}
 
 function popupHTML(p){
-  const t = TIERS[p.tier]||TIERS.SKIP;
-  const scouted = SCOUTED.has(p.osm_id+"|"+p.lat);
-  const park = p.nearest_park_m==null ? "—" : (p.nearest_park_m>=1000
-      ? (p.nearest_park_m/1000).toFixed(1)+"km" : p.nearest_park_m+"m");
+  const t=TIERS[p.tier]||TIERS.SKIP;
+  const id=p.osm_id+"|"+p.lat, scouted=SCOUTED.has(id);
+  const away = origin ? ` · ${milesBetween(origin,[p.lat,p.lon]).toFixed(1)} mi away` : "";
+  const bassBadge = p.bass ? `<span class="tg bass">BASS ${p.bass}</span>` : "";
+  const spp = (p.species&&p.species.length)
+     ? `Likely here: <b>${p.species.join("</b>, <b>")}</b>.<br><span style="opacity:.7">Typical for this water type in central OH — not a survey.</span>`
+     : "";
   return `<div class="card">
-    <div class="nm">${p.name}</div>
-    <span class="tg ${t.abbr}">${p.tier} · ${p.score}</span>
-    <div class="grid">
-      <div class="cell"><div class="k">SURFACE</div><div class="v">${p.acres} ac</div></div>
-      <div class="cell"><div class="k">PUBLIC SHORE</div><div class="v">${p.public_shore_m} m</div></div>
-      <div class="cell"><div class="k">WALK FROM LOT</div><div class="v">${park}</div></div>
-      <div class="cell"><div class="k">COORDS</div><div class="v">${p.lat.toFixed(3)}</div></div>
+    <div class="nm">${p.name}${away}</div>
+    <div class="badges">
+      <span class="tg ${t.abbr}">${p.tier} · ${p.score}</span>
+      ${bassBadge}
+      <span class="tg type">${p.wtype.toUpperCase()} · ${p.acres} ac</span>
     </div>
+    <div class="access">
+      <div class="lbl">HOW TO GET ON IT</div>
+      ${accessLine(p.nearest_park_m)}
+    </div>
+    <div class="grid">
+      <div class="cell"><div class="k">WALK FROM LOT</div><div class="v">${walkStr(p.nearest_park_m)}</div></div>
+      <div class="cell"><div class="k">PUBLIC SHORE</div><div class="v">${shoreStr(p.public_shore_m)}</div></div>
+    </div>
+    <div class="spp">${spp}</div>
     <div class="acts">
-      <a class="btn" target="_blank" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}">DIRECTIONS</a>
-      <span class="btn ${scouted?'on':''}" data-id="${p.osm_id+"|"+p.lat}">${scouted?'SCOUTED ✓':'MARK SCOUTED'}</span>
+      <a class="btn" target="_blank" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}&travelmode=driving">DRIVE</a>
+      <a class="btn" target="_blank" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}&travelmode=walking">WALK</a>
+      <span class="btn ${scouted?'on':''}" data-id="${id}">${scouted?'SCOUTED ✓':'SCOUTED'}</span>
     </div>
   </div>`;
 }
 
-function applyFilter(){
-  layers.forEach(o=>{
-    const show = active.has(o.tier);
-    if(show){ o.marker.addTo(map); } else { map.removeLayer(o.marker); if(o.poly) map.removeLayer(o.poly); }
-  });
-}
-
-fetch("spots.geojson?_="+Date.now()).then(r=>r.json()).then(geo=>{
-  document.getElementById("meta").textContent =
-    `${geo.count} public spots · updated ${geo.generated}`;
-
-  if(geo.sample){
-    const b=document.getElementById("banner");
-    b.style.display="block";
-    b.innerHTML='<b>SAMPLE DATA.</b> These pins are placeholders. Run <code>etl.py</code> (or the GitHub Action) to load real Franklin County water.';
-    setTimeout(()=>b.style.display="none",9000);
-  }
-
-  // chips
-  const chipWrap=document.getElementById("chips");
-  ["HIDDEN GEM","SLEEPER","WORTH A LOOK"].forEach(t=>{
+// ---- chips ----
+function buildChips(){
+  const wrap=document.getElementById("chips"); wrap.innerHTML="";
+  const mk=(cls,label,on,onclick,swatch)=>{
     const el=document.createElement("div");
-    el.className="chip"; el.dataset.t=t;
-    el.innerHTML=`<span class="sw"></span>${t}`;
-    el.onclick=()=>{ active.has(t)?active.delete(t):active.add(t);
-      el.classList.toggle("off"); applyFilter(); };
-    chipWrap.appendChild(el);
-  });
+    el.className="chip "+cls; el.dataset.on=on?"1":"0"; if(!on) el.classList.add("off");
+    el.innerHTML=(swatch?'<span class="sw"></span>':'')+label;
+    el.onclick=()=>{const now=el.dataset.on==="1";el.dataset.on=now?"0":"1";el.classList.toggle("off",now);onclick(!now);};
+    wrap.appendChild(el);
+  };
+  mk("t-gem","GEM",true,v=>{tog(active.tier,"HIDDEN GEM",v);render();},true);
+  mk("t-sleeper","SLEEPER",true,v=>{tog(active.tier,"SLEEPER",v);render();},true);
+  mk("t-look","LOOK",true,v=>{tog(active.tier,"WORTH A LOOK",v);render();},true);
+  mk("type","POND",true,v=>{tog(active.type,"pond",v);render();});
+  mk("type","LAKE",true,v=>{tog(active.type,"lake",v);render();});
+  mk("type","RESERVOIR",false,v=>{tog(active.type,"reservoir",v);render();});
+  mk("toggle bass","BASS ONLY",false,v=>{bassOnly=v;render();});
+  mk("toggle easy","EASY ACCESS",false,v=>{easyOnly=v;render();});
+}
+function tog(set,key,on){on?set.add(key):set.delete(key);}
+
+// ---- load data ----
+fetch("spots.geojson?_="+Date.now()).then(r=>r.json()).then(geo=>{
+  buildChips();
+  if(geo.sample) toast('<b>SAMPLE DATA.</b> Run the GitHub Action to load real Franklin County water.',9000);
 
   geo.features.forEach(f=>{
     const p=f.properties, t=TIERS[p.tier]||TIERS.SKIP;
     const poly=L.geoJSON(f.geometry,{style:{color:t.c,weight:1,fillOpacity:.18}});
-    const marker=L.circleMarker([p.lat,p.lon],{
-      radius:radiusFor(p.acres), color:t.c, weight:2,
-      fillColor:t.c, fillOpacity:.35
-    }).bindPopup(popupHTML(p));
+    const marker=L.circleMarker([p.lat,p.lon],{radius:radiusFor(p.acres),color:t.c,weight:2,
+      fillColor:t.c,fillOpacity:.35}).bindPopup(()=>popupHTML(p));
     marker.on("popupopen",e=>{
       poly.addTo(map);
-      const node=e.popup.getElement().querySelector("[data-id]");
-      if(node) node.onclick=()=>{
-        const id=node.dataset.id;
-        if(SCOUTED.has(id)){SCOUTED.delete(id);node.textContent="MARK SCOUTED";node.classList.remove("on");}
-        else{SCOUTED.add(id);node.textContent="SCOUTED ✓";node.classList.add("on");}
-        saveScouted();
-      };
+      const n=e.popup.getElement().querySelector("[data-id]");
+      if(n) n.onclick=()=>{const id=n.dataset.id;
+        if(SCOUTED.has(id)){SCOUTED.delete(id);n.textContent="SCOUTED";n.classList.remove("on");}
+        else{SCOUTED.add(id);n.textContent="SCOUTED ✓";n.classList.add("on");}
+        saveScouted();};
     });
     marker.on("popupclose",()=>map.removeLayer(poly));
-    layers.push({tier:p.tier, marker, poly});
+    layers.push({p,marker,poly});
   });
-  applyFilter();
+  render();
+  const pts=geo.features.map(f=>[f.properties.lat,f.properties.lon]);
+  if(pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.2));
+}).catch(()=>{document.getElementById("meta").textContent="couldn't load spots.geojson";});
 
-  if(geo.features.length){
-    const b=L.latLngBounds(geo.features.map(f=>[f.properties.lat,f.properties.lon]));
-    map.fitBounds(b.pad(0.2));
-  }
-}).catch(e=>{
-  document.getElementById("meta").textContent="couldn't load spots.geojson — run etl.py first";
-});
+// ---- address search (free OSM geocoder) ----
+function setOrigin(lat,lon,label){
+  origin=[lat,lon];
+  if(originMarker) map.removeLayer(originMarker);
+  if(ring) map.removeLayer(ring);
+  originMarker=L.circleMarker(origin,{radius:7,color:"#fff",weight:2,fillColor:"#5aa9ff",fillOpacity:.95}).addTo(map);
+  if(radius<999){ ring=L.circle(origin,{radius:radius*1609.34,color:"#5aa9ff",weight:1,fillOpacity:.05}).addTo(map); }
+  render();
+  const within=layers.filter(o=>visible(o.p)).map(o=>[o.p.lat,o.p.lon]);
+  if(within.length) map.fitBounds(L.latLngBounds([origin,...within]).pad(0.15));
+  else map.setView(origin,12);
+}
+function geocode(){
+  const q=document.getElementById("addr").value.trim();
+  if(!q){toast("Type an address or town first.");return;}
+  const query = q.includes(",")?q:q+", Ohio, USA";
+  toast("Finding "+q+"…",4000);
+  fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+encodeURIComponent(query),
+    {headers:{"Accept":"application/json"}})
+    .then(r=>r.json()).then(d=>{
+      if(!d.length){toast("Couldn't find that address. Try adding a city.");return;}
+      setOrigin(+d[0].lat,+d[0].lon,d[0].display_name);
+    }).catch(()=>toast("Address lookup failed — check your connection."));
+}
+document.getElementById("go").onclick=geocode;
+document.getElementById("addr").addEventListener("keydown",e=>{if(e.key==="Enter")geocode();});
+document.getElementById("radius").onchange=e=>{
+  radius=+e.target.value;
+  if(origin) setOrigin(origin[0],origin[1]); else render();
+};
 
 // locate
-let here=null;
-document.getElementById("locate").onclick=()=>{
-  map.locate({setView:true, maxZoom:14, enableHighAccuracy:true});
+document.getElementById("locate").onclick=()=>map.locate({setView:false,enableHighAccuracy:true});
+map.on("locationfound",e=>setOrigin(e.latlng.lat,e.latlng.lng,"your location"));
+map.on("locationerror",()=>toast("Location blocked — turn it on or type an address."));
+
+// collapse
+document.getElementById("collapse").onclick=function(){
+  const s=document.getElementById("sheet"); s.classList.toggle("min");
+  this.textContent=s.classList.contains("min")?"▾":"▴";
 };
-map.on("locationfound",e=>{
-  if(here) map.removeLayer(here);
-  here=L.circleMarker(e.latlng,{radius:7,color:"#fff",weight:2,
-    fillColor:"#5aa9ff",fillOpacity:.9}).addTo(map);
-});
-map.on("locationerror",()=>{
-  document.getElementById("meta").textContent="location blocked — enable it in your browser";
-});
 </script>
 </body>
 </html>

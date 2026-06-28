@@ -154,6 +154,61 @@ def tier_for(score):
     return "SKIP"
 
 
+# Flowing / non-target water we never want (rivers, streams, canals, etc.).
+EXCLUDE_WATER = {"river", "stream", "canal", "ditch", "lock", "wastewater",
+                 "stream_pool", "fish_pass", "moat"}
+
+
+def classify_water(tags, acres):
+    """Return 'pond' | 'lake' | 'reservoir', or None to drop (flowing water)."""
+    wt = tags.get("water", "")
+    if wt in EXCLUDE_WATER:
+        return None
+    if wt == "pond":
+        return "pond"
+    if wt == "reservoir":
+        return "reservoir"
+    if wt == "lake":
+        return "lake"
+    # No water subtag -> infer from size.
+    if acres < 5:
+        return "pond"
+    if acres < 25:
+        return "lake"
+    return "reservoir"
+
+
+def species_for(wtype, acres):
+    """Likely warm-water community for central OH by water type/size.
+    Heuristic from water characteristics + region -- NOT a per-pond survey."""
+    if wtype is None:
+        return []
+    if wtype == "pond" and acres < 0.5:
+        return ["Largemouth bass", "Bluegill"]
+    base = ["Largemouth bass", "Bluegill", "Black crappie", "Channel catfish"]
+    if wtype in ("lake", "reservoir") and acres >= 25:
+        return base + ["Saugeye", "White bass"]
+    return base
+
+
+def bass_rating(wtype, acres):
+    """Largemouth-bass potential by size/type. PRIME small ponds & lakes."""
+    if wtype is None:
+        return None
+    if wtype in ("pond", "lake") and 0.5 <= acres <= 15:
+        return "PRIME"
+    if wtype == "pond" and 0.25 <= acres < 0.5:
+        return "GOOD"
+    if wtype in ("pond", "lake") and 15 < acres <= 50:
+        return "GOOD"
+    return "FAIR"
+
+
+def easy_access(dist_park_m):
+    """True = parking within a short, girlfriend-friendly walk."""
+    return dist_park_m is not None and dist_park_m <= 250
+
+
 def score_spot(acres, has_name, has_fishing, dist_park_m):
     s = SCORE["base"]
     if not has_name:
@@ -220,6 +275,11 @@ def main():
             continue  # private water -> drop
 
         acres = poly_m.area / ACRE
+
+        wtype = classify_water(tags, acres)
+        if wtype is None:
+            continue  # flowing / non-target water -> drop
+
         name = tags.get("name")
         has_fishing = tags.get("leisure") == "fishing" or "fishing" in tags
 
@@ -243,7 +303,11 @@ def main():
                 "name": name or "Unnamed water",
                 "tier": tier,
                 "score": score,
+                "wtype": wtype,
                 "acres": round(acres, 2),
+                "species": species_for(wtype, acres),
+                "bass": bass_rating(wtype, acres),
+                "easy_access": easy_access(dist_park),
                 "public_shore_m": shore_m,
                 "nearest_park_m": dist_park,
                 "osm_id": osm_id,
