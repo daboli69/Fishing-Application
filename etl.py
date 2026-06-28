@@ -24,6 +24,7 @@ import sys
 import time
 import urllib.request
 import urllib.error
+import urllib.parse
 
 from shapely.geometry import Polygon, Point, shape, mapping
 from shapely.ops import unary_union, transform
@@ -85,19 +86,29 @@ PROJ = Transformer.from_crs("EPSG:4326", "EPSG:32617", always_xy=True).transform
 
 
 def overpass(query: str) -> dict:
-    """POST an Overpass QL query, trying mirrors in order."""
-    data = ("[out:json][timeout:180];" + query).encode("utf-8")
+    """POST an Overpass QL query, trying mirrors in order.
+
+    Sends a proper User-Agent (public mirrors reject anonymous requests with
+    HTTP 406) and submits the query form-encoded as `data=`, which is the
+    format Overpass expects.
+    """
+    ql = "[out:json][timeout:180];" + query
+    body = b"data=" + urllib.parse.quote(ql).encode("utf-8")
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "QuietWater/1.0 (personal fishing-spot map; contact: daboli69 on github)",
+        "Accept": "application/json",
+    }
     last_err = None
     for url in OVERPASS_URLS:
         try:
-            req = urllib.request.Request(url, data=data,
-                                         headers={"Content-Type": "text/plain"})
+            req = urllib.request.Request(url, data=body, headers=headers)
             with urllib.request.urlopen(req, timeout=200) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError) as e:
             last_err = e
             print(f"  ! {url} failed ({e}); trying next mirror...", file=sys.stderr)
-            time.sleep(3)
+            time.sleep(5)
     raise RuntimeError(f"All Overpass mirrors failed: {last_err}")
 
 
