@@ -63,6 +63,40 @@
     font-size:12px;color:var(--mute);font-family:var(--mono);line-height:1.4;display:none}
   .toast b{color:var(--sleeper)}
 
+  /* list bottom-sheet */
+  .listbtn{position:absolute;z-index:1000;left:14px;bottom:calc(env(safe-area-inset-bottom) + 18px);
+    height:52px;padding:0 18px;border-radius:26px;border:1px solid var(--line);background:var(--gem);
+    color:#0e1518;font-family:var(--mono);font-weight:700;font-size:13px;letter-spacing:.06em;cursor:pointer;
+    box-shadow:0 4px 16px rgba(0,0,0,.5);display:flex;align-items:center;gap:7px}
+  .listbtn:active{transform:scale(.96)}
+  .listsheet{position:absolute;z-index:1100;left:0;right:0;bottom:0;max-height:68vh;
+    background:var(--bg);border-top:1px solid var(--line);border-radius:16px 16px 0 0;
+    transform:translateY(102%);transition:transform .22s ease;display:flex;flex-direction:column;
+    padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -8px 30px rgba(0,0,0,.6)}
+  .listsheet.open{transform:translateY(0)}
+  .lshead{display:flex;align-items:center;gap:9px;padding:12px 14px 10px;border-bottom:1px solid var(--line)}
+  .lshandle{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:38px;height:4px;
+    border-radius:3px;background:var(--line)}
+  .lstitle{font-family:var(--mono);font-size:12px;letter-spacing:.1em;font-weight:700}
+  .lscount{font-family:var(--mono);font-size:10px;color:var(--mute)}
+  .lssort{margin-left:auto;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:7px 10px;font-family:var(--mono);font-size:11px}
+  .lsclose{background:var(--panel2);border:1px solid var(--line);color:var(--ink);width:32px;height:32px;
+    border-radius:8px;font-size:14px;cursor:pointer}
+  .lsbody{overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .lsrow{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);
+    cursor:pointer}
+  .lsrow:active{background:var(--panel)}
+  .lsdot{width:11px;height:11px;border-radius:50%;flex:none}
+  .lsmain{flex:1;min-width:0}
+  .lsname{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lssub{font-family:var(--mono);font-size:10.5px;color:var(--mute);margin-top:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lsbass{font-family:var(--mono);font-size:9px;font-weight:700;padding:3px 6px;border-radius:5px;
+    background:var(--bass);color:#0e1518;flex:none}
+  .lsaway{font-family:var(--mono);font-size:12px;color:var(--ink);flex:none;text-align:right}
+  .lsempty{padding:26px 16px;text-align:center;color:var(--mute);font-size:13px;line-height:1.5}
+
   /* popup */
   .leaflet-popup-content-wrapper{background:var(--panel);color:var(--ink);border:1px solid var(--line);
     border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.6)}
@@ -116,7 +150,26 @@
 </div>
 
 <button class="fab" id="locate" title="Use my location">◎</button>
+<button class="listbtn" id="listbtn">☰ LIST</button>
 <div class="toast" id="toast"></div>
+
+<div class="listsheet" id="listsheet">
+  <div class="lshandle"></div>
+  <div class="lshead">
+    <div>
+      <div class="lstitle">SPOTS</div>
+      <div class="lscount" id="lscount"></div>
+    </div>
+    <select class="lssort" id="lssort">
+      <option value="dist">Nearest</option>
+      <option value="bass">Best bass</option>
+      <option value="score">Top score</option>
+      <option value="acres">Biggest</option>
+    </select>
+    <button class="lsclose" id="lsclose">✕</button>
+  </div>
+  <div class="lsbody" id="lsbody"></div>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -163,7 +216,7 @@ let origin=null, radius=10, originMarker=null, ring=null;
 const layers=[]; // {p, marker, poly}
 
 function toast(html,ms=6000){const t=document.getElementById("toast");t.innerHTML=html;t.style.display="block";clearTimeout(t._t);t._t=setTimeout(()=>t.style.display="none",ms);}
-function radiusFor(acres){return Math.max(7,Math.min(15,6+Math.sqrt(acres||1)*2));}
+function radiusFor(acres){return Math.max(10,Math.min(16,7+Math.sqrt(acres||1)*2));}
 
 function visible(p){
   if(!active.tier.has(p.tier)) return false;
@@ -180,7 +233,55 @@ function render(){
     else { map.removeLayer(o.marker); if(o.poly) map.removeLayer(o.poly); }
   });
   document.getElementById("meta").textContent = shown+" spots shown";
+  if(document.getElementById("listsheet").classList.contains("open")) buildList();
 }
+
+const BASS_RANK={PRIME:3,GOOD:2,FAIR:1,null:0,undefined:0};
+function buildList(){
+  const body=document.getElementById("lsbody");
+  const sort=document.getElementById("lssort").value;
+  let rows=layers.filter(o=>visible(o.p));
+
+  rows.sort((a,b)=>{
+    const A=a.p,B=b.p;
+    if(sort==="dist" && origin) return milesBetween(origin,[A.lat,A.lon])-milesBetween(origin,[B.lat,B.lon]);
+    if(sort==="bass") return (BASS_RANK[B.bass]-BASS_RANK[A.bass]) || (B.score-A.score);
+    if(sort==="acres") return B.acres-A.acres;
+    return B.score-A.score; // score, and fallback when no origin for "dist"
+  });
+
+  document.getElementById("lscount").textContent =
+    rows.length+(origin?" within "+(radius>=999?"area":radius+" mi"):"");
+
+  if(!rows.length){
+    body.innerHTML='<div class="lsempty">No spots match these filters.<br>Loosen a filter or widen the radius.</div>';
+    return;
+  }
+  body.innerHTML="";
+  rows.forEach(o=>{
+    const p=o.p, t=TIERS[p.tier]||TIERS.SKIP;
+    const away = origin ? milesBetween(origin,[p.lat,p.lon]).toFixed(1)+" mi" : "";
+    const row=document.createElement("div");
+    row.className="lsrow";
+    row.innerHTML=`
+      <span class="lsdot" style="background:${t.c}"></span>
+      <div class="lsmain">
+        <div class="lsname">${p.name}</div>
+        <div class="lssub">${p.wtype} · ${p.acres} ac · walk ${walkStr(p.nearest_park_m)}${p.easy_access?" · easy access":""}</div>
+      </div>
+      ${p.bass?`<span class="lsbass">${p.bass}</span>`:""}
+      <div class="lsaway">${away}</div>`;
+    row.onclick=()=>focusSpot(o);
+    body.appendChild(row);
+  });
+}
+function focusSpot(o){
+  closeList();
+  map.setView([o.p.lat,o.p.lon], 15, {animate:true});
+  setTimeout(()=>o.marker.openPopup(), 280);
+}
+function openList(){buildList();document.getElementById("listsheet").classList.add("open");}
+function closeList(){document.getElementById("listsheet").classList.remove("open");}
 
 function popupHTML(p){
   const t=TIERS[p.tier]||TIERS.SKIP;
@@ -296,6 +397,11 @@ document.getElementById("radius").onchange=e=>{
 document.getElementById("locate").onclick=()=>map.locate({setView:false,enableHighAccuracy:true});
 map.on("locationfound",e=>setOrigin(e.latlng.lat,e.latlng.lng,"your location"));
 map.on("locationerror",()=>toast("Location blocked — turn it on or type an address."));
+
+// list sheet wiring
+document.getElementById("listbtn").onclick=openList;
+document.getElementById("lsclose").onclick=closeList;
+document.getElementById("lssort").onchange=buildList;
 
 // collapse
 document.getElementById("collapse").onclick=function(){
