@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>QuietWater</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root{
+    --bg:#0e1518; --panel:#16242a; --line:#27424b; --ink:#e7f0f0; --mute:#7e9aa1;
+    --gem:#39ff9e; --sleeper:#ffd24a; --look:#5aa9ff; --skip:#5b6b70;
+    --mono:'SFMono-Regular',ui-monospace,'Menlo','Consolas',monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,sans-serif}
+  #map{position:absolute;inset:0;z-index:1;background:var(--bg)}
+
+  /* top bar */
+  .bar{position:absolute;z-index:1000;top:0;left:0;right:0;
+    padding:calc(env(safe-area-inset-top) + 10px) 12px 10px;
+    background:linear-gradient(180deg,rgba(14,21,24,.96),rgba(14,21,24,.0));
+    pointer-events:none}
+  .title{font-family:var(--mono);font-weight:700;letter-spacing:.14em;
+    font-size:13px;color:var(--ink);pointer-events:none;display:flex;
+    align-items:center;gap:8px}
+  .title .dot{width:8px;height:8px;border-radius:50%;background:var(--gem);
+    box-shadow:0 0 10px var(--gem)}
+  .meta{font-family:var(--mono);font-size:10px;color:var(--mute);margin-top:2px}
+  .chips{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;pointer-events:auto}
+  .chip{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;
+    border:1px solid var(--line);background:var(--panel);color:var(--mute);
+    padding:6px 9px;border-radius:20px;cursor:pointer;user-select:none;
+    display:flex;align-items:center;gap:6px;transition:.15s}
+  .chip .sw{width:8px;height:8px;border-radius:50%}
+  .chip.off{opacity:.35}
+  .chip[data-t="HIDDEN GEM"] .sw{background:var(--gem)}
+  .chip[data-t="SLEEPER"] .sw{background:var(--sleeper)}
+  .chip[data-t="WORTH A LOOK"] .sw{background:var(--look)}
+
+  /* locate button */
+  .fab{position:absolute;z-index:1000;right:14px;
+    bottom:calc(env(safe-area-inset-bottom) + 18px);
+    width:52px;height:52px;border-radius:50%;border:1px solid var(--line);
+    background:var(--panel);color:var(--ink);font-size:22px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 16px rgba(0,0,0,.5)}
+  .fab:active{transform:scale(.94)}
+
+  /* sample banner */
+  .banner{position:absolute;z-index:1000;left:12px;right:12px;
+    bottom:calc(env(safe-area-inset-bottom) + 18px);
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:10px 12px;font-size:12px;color:var(--mute);font-family:var(--mono);
+    line-height:1.4}
+  .banner b{color:var(--sleeper)}
+
+  /* popup = sounder readout card */
+  .leaflet-popup-content-wrapper{background:var(--panel);color:var(--ink);
+    border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.6)}
+  .leaflet-popup-tip{background:var(--panel);border:1px solid var(--line)}
+  .leaflet-popup-content{margin:13px 15px;width:208px!important}
+  .card .nm{font-size:15px;font-weight:600;margin-bottom:2px}
+  .card .tg{font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+    padding:3px 7px;border-radius:5px;display:inline-block;color:#0e1518;font-weight:700}
+  .tg.GEM{background:var(--gem)} .tg.SLP{background:var(--sleeper)}
+  .tg.LK{background:var(--look)} .tg.SK{background:var(--skip);color:#fff}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:7px 10px;margin:11px 0}
+  .cell .k{font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--mute)}
+  .cell .v{font-family:var(--mono);font-size:14px;color:var(--ink);margin-top:1px}
+  .acts{display:flex;gap:7px;margin-top:4px}
+  .btn{flex:1;text-align:center;font-family:var(--mono);font-size:11px;
+    letter-spacing:.04em;padding:8px;border-radius:7px;border:1px solid var(--line);
+    background:#1c2f36;color:var(--ink);text-decoration:none;cursor:pointer}
+  .btn.on{background:var(--gem);color:#0e1518;border-color:var(--gem)}
+  .leaflet-bar a{background:var(--panel);color:var(--ink);border-color:var(--line)}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="bar">
+  <div class="title"><span class="dot"></span> QUIETWATER</div>
+  <div class="meta" id="meta">loading snapshot…</div>
+  <div class="chips" id="chips"></div>
+</div>
+
+<button class="fab" id="locate" title="Find me">◎</button>
+<div class="banner" id="banner" style="display:none"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const TIERS = {
+  "HIDDEN GEM":{c:"#39ff9e",abbr:"GEM"},
+  "SLEEPER":{c:"#ffd24a",abbr:"SLP"},
+  "WORTH A LOOK":{c:"#5aa9ff",abbr:"LK"},
+  "SKIP":{c:"#5b6b70",abbr:"SK"}
+};
+const SCOUTED = new Set(JSON.parse(localStorage.getItem("qw_scouted")||"[]"));
+const saveScouted = () => localStorage.setItem("qw_scouted", JSON.stringify([...SCOUTED]));
+
+const map = L.map("map",{zoomControl:false}).setView([40.0,-83.0],11);
+L.control.zoom({position:"bottomleft"}).addTo(map);
+// Dark, low-clutter basemap so the water reads first.
+L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{
+  attribution:'&copy; OSM &copy; CARTO', maxZoom:19, subdomains:"abcd"
+}).addTo(map);
+
+const active = new Set(["HIDDEN GEM","SLEEPER","WORTH A LOOK"]); // SKIP hidden by default
+const layers = []; // {tier, marker, poly}
+
+function radiusFor(acres){ return Math.max(7, Math.min(15, 6 + Math.sqrt(acres||1)*2)); }
+
+function popupHTML(p){
+  const t = TIERS[p.tier]||TIERS.SKIP;
+  const scouted = SCOUTED.has(p.osm_id+"|"+p.lat);
+  const park = p.nearest_park_m==null ? "—" : (p.nearest_park_m>=1000
+      ? (p.nearest_park_m/1000).toFixed(1)+"km" : p.nearest_park_m+"m");
+  return `<div class="card">
+    <div class="nm">${p.name}</div>
+    <span class="tg ${t.abbr}">${p.tier} · ${p.score}</span>
+    <div class="grid">
+      <div class="cell"><div class="k">SURFACE</div><div class="v">${p.acres} ac</div></div>
+      <div class="cell"><div class="k">PUBLIC SHORE</div><div class="v">${p.public_shore_m} m</div></div>
+      <div class="cell"><div class="k">WALK FROM LOT</div><div class="v">${park}</div></div>
+      <div class="cell"><div class="k">COORDS</div><div class="v">${p.lat.toFixed(3)}</div></div>
+    </div>
+    <div class="acts">
+      <a class="btn" target="_blank" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}">DIRECTIONS</a>
+      <span class="btn ${scouted?'on':''}" data-id="${p.osm_id+"|"+p.lat}">${scouted?'SCOUTED ✓':'MARK SCOUTED'}</span>
+    </div>
+  </div>`;
+}
+
+function applyFilter(){
+  layers.forEach(o=>{
+    const show = active.has(o.tier);
+    if(show){ o.marker.addTo(map); } else { map.removeLayer(o.marker); if(o.poly) map.removeLayer(o.poly); }
+  });
+}
+
+fetch("spots.geojson?_="+Date.now()).then(r=>r.json()).then(geo=>{
+  document.getElementById("meta").textContent =
+    `${geo.count} public spots · updated ${geo.generated}`;
+
+  if(geo.sample){
+    const b=document.getElementById("banner");
+    b.style.display="block";
+    b.innerHTML='<b>SAMPLE DATA.</b> These pins are placeholders. Run <code>etl.py</code> (or the GitHub Action) to load real Franklin County water.';
+    setTimeout(()=>b.style.display="none",9000);
+  }
+
+  // chips
+  const chipWrap=document.getElementById("chips");
+  ["HIDDEN GEM","SLEEPER","WORTH A LOOK"].forEach(t=>{
+    const el=document.createElement("div");
+    el.className="chip"; el.dataset.t=t;
+    el.innerHTML=`<span class="sw"></span>${t}`;
+    el.onclick=()=>{ active.has(t)?active.delete(t):active.add(t);
+      el.classList.toggle("off"); applyFilter(); };
+    chipWrap.appendChild(el);
+  });
+
+  geo.features.forEach(f=>{
+    const p=f.properties, t=TIERS[p.tier]||TIERS.SKIP;
+    const poly=L.geoJSON(f.geometry,{style:{color:t.c,weight:1,fillOpacity:.18}});
+    const marker=L.circleMarker([p.lat,p.lon],{
+      radius:radiusFor(p.acres), color:t.c, weight:2,
+      fillColor:t.c, fillOpacity:.35
+    }).bindPopup(popupHTML(p));
+    marker.on("popupopen",e=>{
+      poly.addTo(map);
+      const node=e.popup.getElement().querySelector("[data-id]");
+      if(node) node.onclick=()=>{
+        const id=node.dataset.id;
+        if(SCOUTED.has(id)){SCOUTED.delete(id);node.textContent="MARK SCOUTED";node.classList.remove("on");}
+        else{SCOUTED.add(id);node.textContent="SCOUTED ✓";node.classList.add("on");}
+        saveScouted();
+      };
+    });
+    marker.on("popupclose",()=>map.removeLayer(poly));
+    layers.push({tier:p.tier, marker, poly});
+  });
+  applyFilter();
+
+  if(geo.features.length){
+    const b=L.latLngBounds(geo.features.map(f=>[f.properties.lat,f.properties.lon]));
+    map.fitBounds(b.pad(0.2));
+  }
+}).catch(e=>{
+  document.getElementById("meta").textContent="couldn't load spots.geojson — run etl.py first";
+});
+
+// locate
+let here=null;
+document.getElementById("locate").onclick=()=>{
+  map.locate({setView:true, maxZoom:14, enableHighAccuracy:true});
+};
+map.on("locationfound",e=>{
+  if(here) map.removeLayer(here);
+  here=L.circleMarker(e.latlng,{radius:7,color:"#fff",weight:2,
+    fillColor:"#5aa9ff",fillOpacity:.9}).addTo(map);
+});
+map.on("locationerror",()=>{
+  document.getElementById("meta").textContent="location blocked — enable it in your browser";
+});
+</script>
+</body>
+</html>
